@@ -53,7 +53,7 @@
     <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 sm:p-8">
         <div class="text-center">
             <h1 class="text-2xl font-bold text-gray-900 mb-2">Indian Stock Market Data</h1>
-            <div id="status-container" class="flex justify-center items-center flex-wrap gap-x-4 gap-y-2 mb-6 text-sm text-gray-600">
+            <div id="status-container" class="flex justify-center items-center flex-wrap gap-x-4 gap-y-2 mb-4 text-sm text-gray-600">
                 <button id="refresh-btn" title="Reset API" class="flex items-center gap-1 p-1 rounded-md hover:bg-gray-200 text-xs">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
                     <span>Reset API</span>
@@ -300,14 +300,16 @@
                     });
 
                     const data = await response.json();
+                    console.log("Login Response Data:", data); // Log login response
 
                     if (response.ok && data.status === true) {
-                        // Status message now includes user name
+                        // Update Angel One API status to Connected
+                        angelStatusLight.classList.remove('bg-gray-400', 'bg-red-500', 'bg-orange-500');
+                        angelStatusLight.classList.add('bg-green-500');
+                        angelStatusText.textContent = 'Connected';
+                        angelStatusContainer.classList.remove('hidden'); // Ensure it's visible
+
                         showStatusMessage(`Logged in as ${data.data.name || 'User'}! Fetching market data and company list...`, 'success');
-                        angelStatusContainer.classList.remove('hidden');
-                        angelStatusLight.classList.remove('bg-gray-400');
-                        angelStatusLight.classList.add('bg-green-500'); // Indicate success
-                        angelStatusText.textContent = 'Live';
                         mainContent.classList.remove('hidden'); // Show main content
                         
                         // Fetch all instruments for the search functionality
@@ -316,34 +318,38 @@
                         await fetchMarketData();
 
                         // After successful login and data fetch, hide the initial login message
-                        // Keeping it visible for a moment then hiding it for a cleaner UI
                         setTimeout(() => {
                             hideStatusMessage();
                         }, 3000); // Hide after 3 seconds
 
+                        // Display market closed message if applicable
+                        if (!isMarketOpen()) {
+                            marketClosedMessageDiv.classList.remove('hidden');
+                        }
+
                         // Set up periodic market data refresh if market is open
                         if (isMarketOpen()) {
                             setInterval(fetchMarketData, 30000); // Refresh every 30 seconds
-                        } else {
-                            // Display market closed message separately
-                            marketClosedMessageDiv.classList.remove('hidden');
-                            angelStatusLight.classList.remove('bg-green-500');
-                            angelStatusLight.classList.add('bg-orange-500'); // Indicate market closed
-                            angelStatusText.textContent = 'Closed';
                         }
 
                     } else {
+                        // Update Angel One API status to Disconnected
+                        angelStatusLight.classList.remove('bg-gray-400', 'bg-green-500', 'bg-orange-500');
+                        angelStatusLight.classList.add('bg-red-500');
+                        angelStatusText.textContent = 'Disconnected';
+                        angelStatusContainer.classList.remove('hidden'); // Ensure it's visible
+
                         showStatusMessage(`Login failed: ${data.message || 'Unknown error'}. Please check backend logs and Render environment variables.`, 'error');
-                        angelStatusLight.classList.remove('bg-gray-400');
-                        angelStatusLight.classList.add('bg-red-500'); // Indicate failure
-                        angelStatusText.textContent = 'Failed';
                     }
                 } catch (error) {
                     console.error('Error during automatic login fetch:', error);
-                    showStatusMessage('Network error or backend not reachable. Please ensure your Render backend is running.', 'error');
-                    angelStatusLight.classList.remove('bg-gray-400');
+                    // Update Angel One API status to Disconnected (due to network/backend error)
+                    angelStatusLight.classList.remove('bg-gray-400', 'bg-green-500', 'bg-orange-500');
                     angelStatusLight.classList.add('bg-red-500');
-                    angelStatusText.textContent = 'Offline';
+                    angelStatusText.textContent = 'Disconnected';
+                    angelStatusContainer.classList.remove('hidden'); // Ensure it's visible
+
+                    showStatusMessage('Network error or backend not reachable. Please ensure your Render backend is running.', 'error');
                 }
             }
 
@@ -354,6 +360,7 @@
                 try {
                     const response = await authenticatedFetch(`${backendUrl}/api/instruments`);
                     const instruments = await response.json();
+                    console.log("Instruments Data Received:", instruments); // Log instruments data
 
                     if (response.ok) {
                         // Filter for NSE equity stocks and sort by name
@@ -385,6 +392,8 @@
                         body: JSON.stringify({ symboltoken: stock.token, exchange: stock.exch_seg })
                     });
                     const result = await response.json();
+                    console.log("Stock Analysis Data Received:", result); // Log stock analysis data
+
                     if (!response.ok) throw new Error(result.message || 'Failed to fetch technicals');
                     
                     // Restore original structure and update values
@@ -426,6 +435,8 @@
                         })
                     });
                     const result = await response.json();
+                    console.log("Historical Chart Data Received:", result); // Log chart data
+
                     if (!response.ok) throw new Error(result.message || 'Failed to fetch chart data');
                     
                     const ohlcData = result.map(d => ({ x: new Date(d[0]).valueOf(), o: d[1], h: d[2], l: d[3], c: d[4] }));
@@ -484,6 +495,8 @@
                 try {
                     const response = await authenticatedFetch(`${backendUrl}/api/market-data`);
                     const result = await response.json();
+                    console.log("Market Data Received:", result); // Log market data
+
                     if (!response.ok) throw new Error(result.message || 'Failed to fetch market data');
                     
                     // Update Indices
