@@ -21,6 +21,32 @@
         .highlighted {
             background-color: #fef9c3; /* yellow-100 */
         }
+        /* Custom styles for the status message box */
+        .status-message-box {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        .status-message-box.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .status-message-box.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-message-box.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
@@ -33,9 +59,9 @@
                     <span>Reset API</span>
                 </button>
                 <span class="hidden sm:inline text-gray-400 font-bold">|</span>
-                <div id="login-section" class="flex items-center gap-4">
-                     <button id="login-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400">Login to Angel One</button>
-                     <div id="login-status" class="text-xs"></div>
+                <!-- Status message for login/loading -->
+                <div id="login-status-message" class="status-message-box info">
+                    Attempting to log in to Angel One...
                 </div>
                 <div id="angel-status-container" class="hidden flex items-center gap-2">
                     <span>Angel One API:</span>
@@ -66,7 +92,7 @@
                 <div class="flex items-center gap-2"><span class="font-bold text-gray-800" style="font-size: 0.7rem;">SENSEX</span><div style="font-size: 0.7rem;"><p class="font-semibold" id="sensex-price">--.--</p><p id="sensex-change">--.-- (--.--)%</p></div></div>
             </div>
             
-             <!-- Top Performers Section -->
+            <!-- Top Performers Section -->
             <div id="top-performers-container">
                 <h3 class="text-base font-bold text-gray-800 mb-2">Top Performing Companies</h3>
                 <div id="top-performers-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
@@ -89,7 +115,7 @@
                 </div>
                 <!-- Right Side: Technicals -->
                 <div id="technicals-container" class="hidden flex-grow">
-                     <div id="technicals-content" class="p-2 bg-gray-50 border border-gray-200 rounded-lg flex justify-around items-center flex-wrap gap-3">
+                    <div id="technicals-content" class="p-2 bg-gray-50 border border-gray-200 rounded-lg flex justify-around items-center flex-wrap gap-3">
                         <div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">--.--</p></div>
                         <div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">--</p></div>
                         <div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">--.--</p></div>
@@ -104,8 +130,8 @@
                 <!-- Chart Section -->
                 <div id="chart-container">
                     <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
-                         <h3 class="text-xl font-bold text-gray-800">Price Chart</h3>
-                         <div id="timeframe-filter" class="flex items-center border border-gray-300 rounded-lg p-0.5">
+                        <h3 class="text-xl font-bold text-gray-800">Price Chart</h3>
+                        <div id="timeframe-filter" class="flex items-center border border-gray-300 rounded-lg p-0.5">
                             <button data-timeframe="ONE_MINUTE" class="timeframe-btn px-3 py-1 text-sm rounded-md hover:bg-gray-200">1m</button>
                             <button data-timeframe="FIVE_MINUTE" class="timeframe-btn px-3 py-1 text-sm rounded-md hover:bg-gray-200">5m</button>
                             <button data-timeframe="ONE_DAY" class="timeframe-btn px-3 py-1 text-sm rounded-md bg-blue-600 text-white">D</button>
@@ -113,7 +139,7 @@
                     </div>
                     <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
                         <canvas id="price-chart"></canvas>
-                         <div id="chart-loader" class="hidden text-center py-10"><div class="mini-loader mx-auto"></div><p class="text-sm text-gray-500 mt-2">Fetching chart data...</p></div>
+                        <div id="chart-loader" class="hidden text-center py-10"><div class="mini-loader mx-auto"></div><p class="text-sm text-gray-500 mt-2">Fetching chart data...</p></div>
                     </div>
                 </div>
             </div>
@@ -123,9 +149,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- Element References ---
-            const loginSection = document.getElementById('login-section');
-            const loginBtn = document.getElementById('login-btn');
-            const loginStatus = document.getElementById('login-status');
+            const loginStatusMessageDiv = document.getElementById('login-status-message');
             const mainContent = document.getElementById('main-content');
             const searchContainer = document.getElementById('search-container');
             const searchInput = document.getElementById('search-input');
@@ -158,11 +182,32 @@
             const backendUrl = 'https://my-angel-api-service.onrender.com';
             let priceChart = null;
             let activeTimeframe = 'ONE_DAY';
-            let allStocks = [];
+            let allStocks = []; // This will hold the full list of instruments
             let selectedStock = null;
 
-            // --- Functions ---
-            function startIndianClock() { setInterval(() => { const now = new Date(); const options = { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }; clock.textContent = new Intl.DateTimeFormat('en-IN', options).format(now); }, 1000); }
+            // --- Utility Functions ---
+            function showStatusMessage(message, type) {
+                loginStatusMessageDiv.textContent = message;
+                loginStatusMessageDiv.className = `status-message-box ${type}`;
+                loginStatusMessageDiv.classList.remove('hidden');
+            }
+
+            function showErrorMessage(message) {
+                errorMessageDiv.querySelector('span').textContent = message;
+                errorMessageDiv.classList.remove('hidden');
+            }
+
+            function hideErrorMessage() {
+                errorMessageDiv.classList.add('hidden');
+            }
+
+            function startIndianClock() {
+                setInterval(() => {
+                    const now = new Date();
+                    const options = { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+                    clock.textContent = new Intl.DateTimeFormat('en-IN', options).format(now);
+                }, 1000);
+            }
             
             function isMarketOpen() {
                 const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
@@ -170,29 +215,118 @@
                 const hour = now.getHours();
                 const minutes = now.getMinutes();
 
-                if (day === 0 || day === 6) return false;
+                // Market is typically open Monday-Friday (1-5)
+                if (day === 0 || day === 6) return false; // Sunday or Saturday
+                // Market hours are typically 9:15 AM to 3:30 PM IST
                 if (hour < 9 || (hour === 9 && minutes < 15)) return false;
                 if (hour > 15 || (hour === 15 && minutes > 30)) return false;
                 return true;
             }
 
+            // --- Authenticated Fetch Wrapper ---
             async function authenticatedFetch(url, options = {}) {
                 const response = await fetch(url, options);
                 if (response.status === 401) {
-                    loginSection.classList.remove('hidden');
-                    angelStatusContainer.classList.add('hidden');
+                    showStatusMessage('Session expired. Please refresh the page to log in again.', 'error');
+                    // Hide main content and show only the status message
                     mainContent.classList.add('hidden');
-                    loginStatus.innerHTML = `<span class="text-red-600 font-bold">Session expired. Please log in again.</span>`;
-                    loginBtn.disabled = false;
+                    angelStatusContainer.classList.add('hidden');
+                    clockContainer.classList.add('hidden'); // Hide clock if session expires
                     throw new Error('Session expired');
                 }
                 return response;
             }
 
+            // --- Core Data Fetching Functions ---
+
+            /**
+             * Handles the automatic login process to the backend.
+             */
+            async function autoLogin() {
+                showStatusMessage('Attempting to log in to Angel One...', 'info');
+                hideErrorMessage(); // Hide any previous error messages
+
+                try {
+                    const response = await fetch(`${backendUrl}/api/login`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        // No body needed as backend reads credentials from environment variables
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.status === true) {
+                        showStatusMessage(`Logged in as ${data.data.name}! Fetching market data and company list...`, 'success');
+                        angelStatusContainer.classList.remove('hidden');
+                        angelStatusLight.classList.remove('bg-gray-400');
+                        angelStatusLight.classList.add('bg-green-500'); // Indicate success
+                        angelStatusText.textContent = 'Live';
+                        mainContent.classList.remove('hidden'); // Show main content
+                        
+                        // Fetch all instruments for the search functionality
+                        await loadAllInstruments();
+                        // Fetch and display initial market data
+                        await fetchMarketData();
+
+                        // Set up periodic market data refresh if market is open
+                        if (isMarketOpen()) {
+                            setInterval(fetchMarketData, 30000); // Refresh every 30 seconds
+                        } else {
+                            showStatusMessage('Market is currently closed. Data may be delayed.', 'info');
+                            angelStatusLight.classList.remove('bg-green-500');
+                            angelStatusLight.classList.add('bg-orange-500'); // Indicate market closed
+                            angelStatusText.textContent = 'Closed';
+                        }
+
+                    } else {
+                        showStatusMessage(`Login failed: ${data.message || 'Unknown error'}. Please check backend logs and Render environment variables.`, 'error');
+                        angelStatusLight.classList.remove('bg-gray-400');
+                        angelStatusLight.classList.add('bg-red-500'); // Indicate failure
+                        angelStatusText.textContent = 'Failed';
+                    }
+                } catch (error) {
+                    console.error('Error during automatic login fetch:', error);
+                    showStatusMessage('Network error or backend not reachable. Please ensure your Render backend is running.', 'error');
+                    angelStatusLight.classList.remove('bg-gray-400');
+                    angelStatusLight.classList.add('bg-red-500');
+                    angelStatusText.textContent = 'Offline';
+                }
+            }
+
+            /**
+             * Fetches the full list of NSE equity instruments from the backend.
+             */
+            async function loadAllInstruments() {
+                try {
+                    const response = await authenticatedFetch(`${backendUrl}/api/instruments`);
+                    const instruments = await response.json();
+
+                    if (response.ok) {
+                        // Filter for NSE equity stocks and sort by name
+                        allStocks = instruments.filter(instrument =>
+                            instrument.exch_seg === 'NSE' && instrument.symbol.endsWith('-EQ')
+                        ).sort((a, b) => (a.name || '').localeCompare(b.name || '')); // Ensure name exists for sorting
+                        
+                        if (allStocks.length === 0) {
+                            showStatusMessage('No NSE equity instruments found. Check backend logs for API response.', 'error');
+                        }
+                    } else {
+                        showErrorMessage(`Failed to load instruments: ${instruments.message || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Error loading instruments:', error);
+                    if (error.message !== 'Session expired') {
+                        showErrorMessage('Network error or failed to load instruments from backend.');
+                    }
+                }
+            }
+
             async function fetchTechnicalIndicators(stock) {
-                 const originalContent = `<div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">--</p></div><div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">50-DMA</span><p id="dma50-value" class="font-semibold text-base">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">200-DMA</span><p id="dma200-value" class="font-semibold text-base">--.--</p></div>`;
-                 technicalsContent.innerHTML = '<div class="mini-loader mx-auto"></div>';
-                 try {
+                const originalContent = technicalsContent.innerHTML; // Store original content to restore
+                technicalsContent.innerHTML = '<div class="mini-loader mx-auto"></div>';
+                try {
                     const response = await authenticatedFetch(`${backendUrl}/api/stock-analysis`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -201,12 +335,14 @@
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message || 'Failed to fetch technicals');
                     
-                    technicalsContent.innerHTML = originalContent;
-                    document.getElementById('current-price').textContent = result.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    document.getElementById('rsi-value').textContent = result.rsi ? result.rsi.toFixed(2) : 'N/A';
-                    document.getElementById('dma20-value').textContent = result.dma20 ? result.dma20.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
-                    document.getElementById('dma50-value').textContent = result.dma50 ? result.dma50.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
-                    document.getElementById('dma200-value').textContent = result.dma200 ? result.dma200.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+                    // Restore original structure and update values
+                    technicalsContent.innerHTML = `
+                        <div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">${result.currentPrice ? result.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--.--'}</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">${result.rsi ? result.rsi.toFixed(2) : '--'}</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">${result.dma20 ? result.dma20.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--.--'}</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">50-DMA</span><p id="dma50-value" class="font-semibold text-base">${result.dma50 ? result.dma50.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--.--'}</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">200-DMA</span><p id="dma200-value" class="font-semibold text-base">${result.dma200 ? result.dma200.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--.--'}</p></div>
+                    `;
                 } catch (error) {
                     technicalsContent.innerHTML = `<p class="text-red-500 text-center text-xs">Error: ${error.message}</p>`;
                 }
@@ -220,9 +356,9 @@
                     const todate = new Date().toISOString().slice(0, 10);
                     let fromdate = new Date();
                     if (timeframe === 'ONE_DAY') {
-                        fromdate.setMonth(fromdate.getMonth() - 6);
+                        fromdate.setMonth(fromdate.getMonth() - 6); // 6 months of daily data
                     } else {
-                        fromdate.setDate(fromdate.getDate() - 2);
+                        fromdate.setDate(fromdate.getDate() - 2); // 2 days of minute data
                     }
                     fromdate = fromdate.toISOString().slice(0, 10);
 
@@ -232,7 +368,7 @@
                         body: JSON.stringify({ 
                             symboltoken: stock.token, 
                             exchange: stock.exch_seg, 
-                            interval: timeframe, 
+                            timeframe: timeframe, // Use 'interval' as per backend (it's 'timeframe' in frontend)
                             fromdate, 
                             todate 
                         })
@@ -248,10 +384,47 @@
                     priceChart = new Chart(ctx, {
                         type: 'candlestick',
                         data: { datasets: [{ label: `${stock.name} OHLC`, data: ohlcData }] },
-                        options: { responsive: true, scales: { x: { type: 'time', time: { unit: 'day' } } } }
+                        options: { 
+                            responsive: true, 
+                            maintainAspectRatio: false, // Allow canvas to resize freely
+                            scales: { 
+                                x: { 
+                                    type: 'time', 
+                                    time: { 
+                                        unit: timeframe === 'ONE_DAY' ? 'day' : 'hour', // Adjust unit based on timeframe
+                                        displayFormats: {
+                                            day: 'MMM D',
+                                            hour: 'h:mm a'
+                                        }
+                                    },
+                                    adapters: {
+                                        date: ChartAdapterDateFns
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: false // Stock prices don't start at zero
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const ohlc = context.raw;
+                                            return [
+                                                `Open: ${ohlc.o.toFixed(2)}`,
+                                                `High: ${ohlc.h.toFixed(2)}`,
+                                                `Low: ${ohlc.l.toFixed(2)}`,
+                                                `Close: ${ohlc.c.toFixed(2)}`
+                                            ];
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     });
                 } catch (error) {
                     chartLoader.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                    priceChartCanvas.style.display = 'none'; // Hide canvas if error
                 }
             }
             
@@ -262,24 +435,27 @@
                     if (!response.ok) throw new Error(result.message || 'Failed to fetch market data');
                     
                     // Update Indices
-                    const nifty = result.indices.find(d => d.symbolToken === '26000');
-                    const banknifty = result.indices.find(d => d.symbolToken === '26009');
-                    const sensex = result.indices.find(d => d.symbolToken === '99926000');
+                    const nifty = result.indices.find(d => d.symbolToken === '26000'); // Nifty 50 token
+                    const banknifty = result.indices.find(d => d.symbolToken === '26009'); // Bank Nifty token
+                    const sensex = result.indices.find(d => d.symbolToken === '26037'); // Sensex token (from BSE)
                     
                     if (nifty) {
-                        document.getElementById('nifty-price').textContent = nifty.ltp.toLocaleString('en-IN');
-                        document.getElementById('nifty-change').textContent = `${nifty.netChange.toFixed(2)} (${nifty.percentChange.toFixed(2)}%)`;
-                        document.getElementById('nifty-change').className = nifty.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                        document.getElementById('nifty-price').textContent = nifty.ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const changeEl = document.getElementById('nifty-change');
+                        changeEl.textContent = `${nifty.netChange >= 0 ? '+' : ''}${nifty.netChange.toFixed(2)} (${nifty.percentChange.toFixed(2)}%)`;
+                        changeEl.className = `text-xs ${nifty.netChange >= 0 ? 'price-up' : 'price-down'}`;
                     }
                     if (banknifty) {
-                        document.getElementById('banknifty-price').textContent = banknifty.ltp.toLocaleString('en-IN');
-                        document.getElementById('banknifty-change').textContent = `${banknifty.netChange.toFixed(2)} (${banknifty.percentChange.toFixed(2)}%)`;
-                        document.getElementById('banknifty-change').className = banknifty.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                        document.getElementById('banknifty-price').textContent = banknifty.ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const changeEl = document.getElementById('banknifty-change');
+                        changeEl.textContent = `${banknifty.netChange >= 0 ? '+' : ''}${banknifty.netChange.toFixed(2)} (${banknifty.percentChange.toFixed(2)}%)`;
+                        changeEl.className = `text-xs ${banknifty.netChange >= 0 ? 'price-up' : 'price-down'}`;
                     }
-                     if (sensex) {
-                        document.getElementById('sensex-price').textContent = sensex.ltp.toLocaleString('en-IN');
-                        document.getElementById('sensex-change').textContent = `${sensex.netChange.toFixed(2)} (${sensex.percentChange.toFixed(2)}%)`;
-                        document.getElementById('sensex-change').className = sensex.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                    if (sensex) {
+                        document.getElementById('sensex-price').textContent = sensex.ltp.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const changeEl = document.getElementById('sensex-change');
+                        changeEl.textContent = `${sensex.netChange >= 0 ? '+' : ''}${sensex.netChange.toFixed(2)} (${sensex.percentChange.toFixed(2)}%)`;
+                        changeEl.className = `text-xs ${sensex.netChange >= 0 ? 'price-up' : 'price-down'}`;
                     }
 
                     // Update Top Performers
@@ -288,73 +464,154 @@
                         const stockDiv = document.createElement('div');
                         stockDiv.className = 'p-1 bg-gray-100 rounded';
                         const changeText = `${stock.change >= 0 ? '+' : ''}${stock.change.toFixed(2)} (${stock.percentChange.toFixed(2)}%)`;
-                        stockDiv.innerHTML = `<p class="font-semibold truncate" style="font-size: 0.65rem;" title="${stock.name}">${stock.name}</p><p class="text-gray-600" style="font-size: 0.65rem;">${stock.price.toLocaleString('en-IN')}</p><p class="text-xs ${stock.change >= 0 ? 'price-up' : 'price-down'}">${changeText}</p>`;
+                        stockDiv.innerHTML = `
+                            <p class="font-semibold truncate" style="font-size: 0.65rem;" title="${stock.name}">${stock.name}</p>
+                            <p class="text-gray-600" style="font-size: 0.65rem;">${stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            <p class="text-xs ${stock.change >= 0 ? 'price-up' : 'price-down'}">${changeText}</p>
+                        `;
                         topPerformersGrid.appendChild(stockDiv);
                     });
 
                 } catch (error) {
                     console.error("Error fetching market data:", error.message);
                     if (error.message !== 'Session expired') {
-                        errorMessageDiv.querySelector('span').textContent = "Could not fetch live market data. The market may be closed. Please try again during market hours (9:15 AM - 3:30 PM IST).";
-                        errorMessageDiv.classList.remove('hidden');
+                        showErrorMessage("Could not fetch live market data. The market may be closed. Please try again during market hours (9:15 AM - 3:30 PM IST).");
                     }
                 }
             }
 
-            function renderSearchResults(stocks) { /* ... */ }
-            function handleStockSelection(stock) { /* ... */ }
-            function resetSelection() { /* ... */ }
-            
-            // --- Initial Page Load ---
-            async function initializeApp() {
-                clockContainer.classList.remove('hidden');
-                startIndianClock();
+            // --- Search and Selection Functions ---
+            function renderSearchResults(stocks) {
+                searchResults.innerHTML = '';
+                if (stocks.length === 0) {
+                    searchResults.innerHTML = `<div class="p-2 text-gray-500">No results found</div>`;
+                } else {
+                    stocks.slice(0, 100).forEach((stock, index) => { // Limit to 100 results for performance
+                        const item = document.createElement('div');
+                        item.className = `p-2 hover:bg-gray-100 cursor-pointer ${index === 0 ? 'highlighted' : ''}`;
+                        item.innerHTML = `${stock.name} <span class="text-gray-500 text-sm">(${stock.tradingsymbol || stock.symbol})</span>`;
+                        item.dataset.stock = JSON.stringify(stock); // Store full stock object
+                        searchResults.appendChild(item);
+                    });
+                }
+                searchResults.classList.remove('hidden');
             }
-            initializeApp();
 
+            function handleStockSelection(stock) {
+                selectedStock = stock;
+                searchInput.value = stock.name; // Display full name in input
+                searchResults.classList.add('hidden');
+                cancelSearchBtn.classList.remove('hidden');
+                technicalsContainer.classList.remove('hidden');
+                stockDetailsWrapper.classList.remove('hidden');
+                renderChart(stock, activeTimeframe);
+                fetchTechnicalIndicators(stock);
+            }
+
+            function resetSelection() {
+                selectedStock = null;
+                searchInput.value = '';
+                cancelSearchBtn.classList.add('hidden');
+                searchResults.classList.add('hidden');
+                technicalsContainer.classList.add('hidden');
+                stockDetailsWrapper.classList.add('hidden');
+                if (priceChart) priceChart.destroy();
+                hideErrorMessage(); // Clear error message on reset
+                // Reset technicals display
+                technicalsContent.innerHTML = `
+                    <div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">--.--</p></div>
+                    <div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">--</p></div>
+                    <div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">--.--</p></div>
+                    <div class="text-center"><span class="text-xs text-gray-600">50-DMA</span><p id="dma50-value" class="font-semibold text-base">--.--</p></div>
+                    <div class="text-center"><span class="text-xs text-gray-600">200-DMA</span><p id="dma200-value" class="font-semibold text-base">--.--</p></div>
+                `;
+            }
+            
             // --- Event Listeners ---
-            loginBtn.addEventListener('click', async () => {
-                loginBtn.disabled = true;
-                loginStatus.textContent = 'Logging in...';
-                errorMessageDiv.classList.add('hidden');
-                try {
-                    const response = await fetch(`${backendUrl}/api/login`, { method: 'POST' });
-                    const result = await response.json();
-                    if (!response.ok) {
-                        throw new Error(result.message || `HTTP error! Status: ${response.status}`);
-                    }
-                    
-                    loginSection.classList.add('hidden');
-                    angelStatusContainer.classList.remove('hidden');
-                    
-                    mainContent.classList.remove('hidden');
-
-                    const instrumentsResponse = await authenticatedFetch(`${backendUrl}/api/instruments`);
-                    const instrumentsData = await instrumentsResponse.json();
-                    allStocks = instrumentsData.sort((a, b) => a.name.localeCompare(b.name));
-                    
-                    fetchMarketData();
-                    if (isMarketOpen()) {
-                        setInterval(fetchMarketData, 30000);
-                    }
-
-                } catch (error) {
-                    loginStatus.innerHTML = `<span class="text-red-600 font-bold">Login Failed: ${error.message}</span>`;
-                    loginBtn.disabled = false;
-                }
-            });
             
+            // Auto-login on page load
+            autoLogin();
+
             if(refreshBtn) {
                 refreshBtn.addEventListener('click', () => location.reload());
             }
-            searchInput.addEventListener('input', () => { /* ... */ });
-            searchInput.addEventListener('focus', () => { /* ... */ });
-            searchInput.addEventListener('keydown', (event) => { /* ... */ });
+
+            searchInput.addEventListener('input', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                cancelSearchBtn.classList.toggle('hidden', !searchTerm);
+                const filteredStocks = allStocks.filter(stock =>
+                    (stock.name && stock.name.toLowerCase().includes(searchTerm)) ||
+                    (stock.tradingsymbol && stock.tradingsymbol.toLowerCase().includes(searchTerm)) ||
+                    (stock.symbol && stock.symbol.toLowerCase().includes(searchTerm))
+                );
+                renderSearchResults(filteredStocks);
+            });
+
+            searchInput.addEventListener('focus', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filteredStocks = allStocks.filter(stock =>
+                    (stock.name && stock.name.toLowerCase().includes(searchTerm)) ||
+                    (stock.tradingsymbol && stock.tradingsymbol.toLowerCase().includes(searchTerm)) ||
+                    (stock.symbol && stock.symbol.toLowerCase().includes(searchTerm))
+                );
+                renderSearchResults(filteredStocks);
+            });
+
+            searchInput.addEventListener('keydown', (event) => {
+                const resultsContainer = searchResults;
+                const highlighted = resultsContainer.querySelector('.highlighted');
+                let newHighlighted;
+
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    if (highlighted && highlighted.nextElementSibling) {
+                        newHighlighted = highlighted.nextElementSibling;
+                    } else if (!highlighted && resultsContainer.firstElementChild) {
+                        newHighlighted = resultsContainer.firstElementChild;
+                    }
+                    if (newHighlighted) {
+                        if(highlighted) highlighted.classList.remove('highlighted');
+                        newHighlighted.classList.add('highlighted');
+                        newHighlighted.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    if (highlighted && highlighted.previousElementSibling) {
+                        newHighlighted = highlighted.previousElementSibling;
+                    }
+                    if (newHighlighted) {
+                        if(highlighted) highlighted.classList.remove('highlighted');
+                        newHighlighted.classList.add('highlighted');
+                        newHighlighted.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (highlighted) {
+                        const stockData = JSON.parse(highlighted.dataset.stock);
+                        handleStockSelection(stockData);
+                    }
+                }
+            });
+
             cancelSearchBtn.addEventListener('click', resetSelection);
-            searchResults.addEventListener('click', (event) => { /* ... */ });
-            document.addEventListener('click', (event) => { /* ... */ });
+
+            searchResults.addEventListener('click', (event) => {
+                const target = event.target.closest('[data-stock]');
+                if (target) {
+                    const stockData = JSON.parse(target.dataset.stock);
+                    handleStockSelection(stockData);
+                }
+            });
+
+            // Close search results when clicking outside
+            document.addEventListener('click', (event) => {
+                if (!searchContainer.contains(event.target)) {
+                    searchResults.classList.add('hidden');
+                }
+            });
+
             timeframeFilter.addEventListener('click', (event) => {
-                 const target = event.target.closest('.timeframe-btn');
+                const target = event.target.closest('.timeframe-btn');
                 if (!target || target.dataset.timeframe === activeTimeframe) return;
 
                 document.querySelectorAll('.timeframe-btn').forEach(btn => {
@@ -371,16 +628,8 @@
                 }
             });
 
-            // --- Pasted Functions for completeness ---
-            function renderSearchResults(stocks) { searchResults.innerHTML = ''; if (stocks.length === 0) { searchResults.innerHTML = `<div class="p-2 text-gray-500">No results found</div>`; } else { stocks.slice(0, 100).forEach((stock, index) => { const item = document.createElement('div'); item.className = `p-2 hover:bg-gray-100 cursor-pointer ${index === 0 ? 'highlighted' : ''}`; item.innerHTML = `${stock.name} <span class="text-gray-500 text-sm">(${stock.symbol})</span>`; item.dataset.stock = JSON.stringify(stock); searchResults.appendChild(item); }); } searchResults.classList.remove('hidden'); }
-            function handleStockSelection(stock) { selectedStock = stock; searchInput.value = stock.name; searchResults.classList.add('hidden'); cancelSearchBtn.classList.remove('hidden'); technicalsContainer.classList.remove('hidden'); stockDetailsWrapper.classList.remove('hidden'); renderChart(stock, activeTimeframe); fetchTechnicalIndicators(stock); }
-            function resetSelection() { selectedStock = null; searchInput.value = ''; cancelSearchBtn.classList.add('hidden'); searchResults.classList.add('hidden'); technicalsContainer.classList.add('hidden'); stockDetailsWrapper.classList.add('hidden'); if (priceChart) priceChart.destroy(); }
-            searchInput.addEventListener('input', () => { const searchTerm = searchInput.value.toLowerCase(); cancelSearchBtn.classList.toggle('hidden', !searchTerm); const filteredStocks = allStocks.filter(stock => stock.name.toLowerCase().includes(searchTerm) || stock.symbol.toLowerCase().includes(searchTerm)); renderSearchResults(filteredStocks); });
-            searchInput.addEventListener('focus', () => { const searchTerm = searchInput.value.toLowerCase(); const filteredStocks = allStocks.filter(stock => stock.name.toLowerCase().includes(searchTerm) || stock.symbol.toLowerCase().includes(searchTerm)); renderSearchResults(filteredStocks); });
-            searchInput.addEventListener('keydown', (event) => { const resultsContainer = searchResults; const highlighted = resultsContainer.querySelector('.highlighted'); let newHighlighted; if (event.key === 'ArrowDown') { event.preventDefault(); if (highlighted && highlighted.nextElementSibling) { newHighlighted = highlighted.nextElementSibling; } else if (!highlighted) { newHighlighted = resultsContainer.firstElementChild; } if (newHighlighted) { if(highlighted) highlighted.classList.remove('highlighted'); newHighlighted.classList.add('highlighted'); newHighlighted.scrollIntoView({ block: 'nearest' }); } } else if (event.key === 'ArrowUp') { event.preventDefault(); if (highlighted && highlighted.previousElementSibling) { newHighlighted = highlighted.previousElementSibling; } if (newHighlighted) { if(highlighted) highlighted.classList.remove('highlighted'); newHighlighted.classList.add('highlighted'); newHighlighted.scrollIntoView({ block: 'nearest' }); } } else if (event.key === 'Enter') { event.preventDefault(); if (highlighted) { const stockData = JSON.parse(highlighted.dataset.stock); handleStockSelection(stockData); } } });
-            cancelSearchBtn.addEventListener('click', resetSelection);
-            searchResults.addEventListener('click', (event) => { const target = event.target.closest('[data-stock]'); if (target) { const stockData = JSON.parse(target.dataset.stock); handleStockSelection(stockData); } });
-            document.addEventListener('click', (event) => { if (!searchContainer.contains(event.target)) { searchResults.classList.add('hidden'); } });
+            // Initialize clock immediately
+            startIndianClock();
         });
     </script>
 </body>
