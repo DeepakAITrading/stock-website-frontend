@@ -142,6 +142,26 @@
                         <div id="chart-loader" class="hidden text-center py-10"><div class="mini-loader mx-auto"></div><p class="text-sm text-gray-500 mt-2">Fetching chart data...</p></div>
                     </div>
                 </div>
+
+                <!-- Company News Section -->
+                <div id="company-news-section" class="hidden mt-6">
+                    <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+                        <h3 class="text-xl font-bold text-gray-800">Company News</h3>
+                        <button id="fetch-news-btn" class="bg-purple-600 text-white font-bold py-1.5 px-3 rounded-lg hover:bg-purple-700 transition-all disabled:bg-gray-400 text-sm">
+                            <span id="news-button-text">Get News</span>
+                            <div id="news-button-loader" class="mini-loader hidden ml-2"></div>
+                        </button>
+                    </div>
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg min-h-[100px] flex items-center justify-center">
+                        <div id="news-loader" class="hidden text-center py-5">
+                            <div class="mini-loader mx-auto"></div>
+                            <p class="text-sm text-gray-500 mt-2">Fetching news summary with Google AI...</p>
+                        </div>
+                        <div id="news-content" class="text-gray-700 text-sm leading-relaxed text-left">
+                            Select a company and click "Get News" to see recent updates.
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -178,6 +198,15 @@
             const topPerformersGrid = document.getElementById('top-performers-grid');
             const errorMessageDiv = document.getElementById('error-message');
             const refreshBtn = document.getElementById('refresh-btn');
+
+            // News specific elements
+            const companyNewsSection = document.getElementById('company-news-section');
+            const fetchNewsBtn = document.getElementById('fetch-news-btn');
+            const newsButtonText = document.getElementById('news-button-text');
+            const newsButtonLoader = document.getElementById('news-button-loader');
+            const newsLoader = document.getElementById('news-loader');
+            const newsContent = document.getElementById('news-content');
+
 
             const backendUrl = 'https://my-angel-api-service.onrender.com';
             let priceChart = null;
@@ -504,6 +533,8 @@
                 cancelSearchBtn.classList.remove('hidden');
                 technicalsContainer.classList.remove('hidden');
                 stockDetailsWrapper.classList.remove('hidden');
+                companyNewsSection.classList.remove('hidden'); // Show news section
+                newsContent.innerHTML = 'Select a company and click "Get News" to see recent updates.'; // Reset news content
                 renderChart(stock, activeTimeframe);
                 fetchTechnicalIndicators(stock);
             }
@@ -515,6 +546,7 @@
                 searchResults.classList.add('hidden');
                 technicalsContainer.classList.add('hidden');
                 stockDetailsWrapper.classList.add('hidden');
+                companyNewsSection.classList.add('hidden'); // Hide news section on reset
                 if (priceChart) priceChart.destroy();
                 hideErrorMessage(); // Clear error message on reset
                 // Reset technicals display
@@ -527,6 +559,75 @@
                 `;
             }
             
+            // --- Google AI API Status Check (Simulated) ---
+            async function checkGoogleAIStatus() {
+                // In a real application, you would make a secure backend call here
+                // that then interacts with the Google AI API.
+                // For demonstration, we're simulating success/failure.
+
+                // Initial state
+                aiStatusLight.classList.remove('bg-green-500', 'bg-red-500');
+                aiStatusLight.classList.add('bg-gray-400');
+                aiStatusText.textContent = 'Checking...';
+
+                setTimeout(() => {
+                    const isActive = Math.random() > 0.5; // Randomly decide if active or offline
+
+                    if (isActive) {
+                        aiStatusLight.classList.remove('bg-gray-400');
+                        aiStatusLight.classList.add('bg-green-500');
+                        aiStatusText.textContent = 'Active';
+                    } else {
+                        aiStatusLight.classList.remove('bg-gray-400');
+                        aiStatusLight.classList.add('bg-red-500');
+                        aiStatusText.textContent = 'Offline';
+                    }
+                }, 1500); // Simulate a 1.5-second check
+            }
+
+            // --- News Fetching Function ---
+            async function fetchCompanyNews(companyName) {
+                if (!companyName) {
+                    newsContent.innerHTML = 'Please select a company first.';
+                    return;
+                }
+
+                fetchNewsBtn.disabled = true;
+                newsButtonText.classList.add('hidden');
+                newsButtonLoader.classList.remove('hidden');
+                newsLoader.classList.remove('hidden');
+                newsContent.innerHTML = ''; // Clear previous news
+                hideErrorMessage();
+
+                try {
+                    const response = await fetch(`${backendUrl}/api/generate-news-summary`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ companyName: companyName })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.newsSummary) {
+                        newsContent.innerHTML = data.newsSummary;
+                    } else {
+                        newsContent.innerHTML = `<p class="text-red-500">Error fetching news: ${data.message || 'Unknown error'}</p>`;
+                        showErrorMessage(`Failed to get news summary: ${data.message || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error('Error fetching company news:', error);
+                    newsContent.innerHTML = `<p class="text-red-500">Network error or backend not reachable for news.</p>`;
+                    showErrorMessage('Network error or backend not reachable for news.');
+                } finally {
+                    fetchNewsBtn.disabled = false;
+                    newsButtonText.classList.remove('hidden');
+                    newsButtonLoader.classList.add('hidden');
+                    newsLoader.classList.add('hidden');
+                }
+            }
+
             // --- Event Listeners ---
             
             // Auto-login on page load
@@ -628,8 +729,18 @@
                 }
             });
 
-            // Initialize clock immediately
+            // Event listener for fetching news
+            fetchNewsBtn.addEventListener('click', () => {
+                if (selectedStock) {
+                    fetchCompanyNews(selectedStock.name);
+                } else {
+                    newsContent.innerHTML = 'Please select a company first to fetch news.';
+                }
+            });
+
+            // Initialize clock and check AI status immediately
             startIndianClock();
+            checkGoogleAIStatus(); // Call the new function
         });
     </script>
 </body>
