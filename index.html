@@ -74,10 +74,16 @@
                     <span id="ai-status-light" class="w-3 h-3 rounded-full bg-gray-400"></span>
                     <span id="ai-status-text">Checking...</span>
                 </div>
-                <div id="clock-container" class="hidden flex items-center gap-2">
+                <!-- Removed 'hidden' class from clock-container -->
+                <div id="clock-container" class="flex items-center gap-2">
                     <span class="hidden sm:inline text-gray-400 font-bold">|</span>
                     <span id="clock"></span>
                 </div>
+            </div>
+
+            <!-- New div for market closed message -->
+            <div id="market-closed-message" class="status-message-box info hidden">
+                Market is currently closed. Data may be delayed.
             </div>
         </div>
         
@@ -170,6 +176,8 @@
         document.addEventListener('DOMContentLoaded', () => {
             // --- Element References ---
             const loginStatusMessageDiv = document.getElementById('login-status-message');
+            const marketClosedMessageDiv = document.getElementById('market-closed-message');
+
             const mainContent = document.getElementById('main-content');
             const searchContainer = document.getElementById('search-container');
             const searchInput = document.getElementById('search-input');
@@ -221,6 +229,10 @@
                 loginStatusMessageDiv.classList.remove('hidden');
             }
 
+            function hideStatusMessage() {
+                loginStatusMessageDiv.classList.add('hidden');
+            }
+
             function showErrorMessage(message) {
                 errorMessageDiv.querySelector('span').textContent = message;
                 errorMessageDiv.classList.remove('hidden');
@@ -261,6 +273,7 @@
                     mainContent.classList.add('hidden');
                     angelStatusContainer.classList.add('hidden');
                     clockContainer.classList.add('hidden'); // Hide clock if session expires
+                    marketClosedMessageDiv.classList.add('hidden'); // Hide this too
                     throw new Error('Session expired');
                 }
                 return response;
@@ -274,6 +287,7 @@
             async function autoLogin() {
                 showStatusMessage('Attempting to log in to Angel One...', 'info');
                 hideErrorMessage(); // Hide any previous error messages
+                marketClosedMessageDiv.classList.add('hidden'); // Ensure hidden initially
 
                 try {
                     const response = await fetch(`${backendUrl}/api/login`, {
@@ -299,11 +313,15 @@
                         // Fetch and display initial market data
                         await fetchMarketData();
 
+                        // After successful login and data fetch, hide the initial login message
+                        hideStatusMessage();
+
                         // Set up periodic market data refresh if market is open
                         if (isMarketOpen()) {
                             setInterval(fetchMarketData, 30000); // Refresh every 30 seconds
                         } else {
-                            showStatusMessage('Market is currently closed. Data may be delayed.', 'info');
+                            // Display market closed message separately
+                            marketClosedMessageDiv.classList.remove('hidden');
                             angelStatusLight.classList.remove('bg-green-500');
                             angelStatusLight.classList.add('bg-orange-500'); // Indicate market closed
                             angelStatusText.textContent = 'Closed';
