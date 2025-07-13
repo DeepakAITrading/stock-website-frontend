@@ -595,21 +595,21 @@
                 `;
             }
             
-            // --- Google AI API Status Check (Simulated) ---
+            // --- Google AI API Status Check ---
             async function checkGoogleAIStatus() {
-                // In a real application, you would make a secure backend call here
-                // that then interacts with the Google AI API.
-                // For demonstration, we're simulating success/failure.
-
-                // Initial state
                 aiStatusLight.classList.remove('bg-green-500', 'bg-red-500');
                 aiStatusLight.classList.add('bg-gray-400');
                 aiStatusText.textContent = 'Checking...';
 
-                setTimeout(() => {
-                    const isActive = Math.random() > 0.5; // Randomly decide if active or offline
+                try {
+                    // Make a simple backend call to test Google AI API connectivity
+                    const response = await fetch(`${backendUrl}/api/generate-news-summary`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ companyName: "Google" }) // Use a generic company name for the test
+                    });
 
-                    if (isActive) {
+                    if (response.ok) {
                         aiStatusLight.classList.remove('bg-gray-400');
                         aiStatusLight.classList.add('bg-green-500');
                         aiStatusText.textContent = 'Active';
@@ -617,8 +617,14 @@
                         aiStatusLight.classList.remove('bg-gray-400');
                         aiStatusLight.classList.add('bg-red-500');
                         aiStatusText.textContent = 'Offline';
+                        console.error('Google AI API check failed with status:', response.status);
                     }
-                }, 1500); // Simulate a 1.5-second check
+                } catch (error) {
+                    aiStatusLight.classList.remove('bg-gray-400');
+                    aiStatusLight.classList.add('bg-red-500');
+                    aiStatusText.textContent = 'Offline';
+                    console.error('Error during Google AI API check:', error);
+                }
             }
 
             // --- News Fetching Function ---
