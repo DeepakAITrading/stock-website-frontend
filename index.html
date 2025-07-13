@@ -4,22 +4,384 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indian Stock Market Data</title>
-    </head>
-<body>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Chart.js and necessary adapters for candlestick charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@^3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial/dist/chartjs-chart-financial.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        .mini-loader { border: 2px solid #f3f3f3; border-top: 2px solid #3b82f6; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .transition-all { transition: all 0.3s ease-in-out; }
+        .price-up { color: #16a34a; } /* green-600 */
+        .price-down { color: #dc2626; } /* red-600 */
+        .highlighted {
+            background-color: #fef9c3; /* yellow-100 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+        <div class="text-center">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Indian Stock Market Data</h1>
+            <div id="status-container" class="flex justify-center items-center flex-wrap gap-x-4 gap-y-2 mb-6 text-sm text-gray-600">
+                <button id="refresh-btn" title="Reset API" class="flex items-center gap-1 p-1 rounded-md hover:bg-gray-200 text-xs">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 110 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+                    <span>Reset API</span>
+                </button>
+                <span class="hidden sm:inline text-gray-400 font-bold">|</span>
+                <div id="login-section" class="flex items-center gap-4">
+                     <button id="login-btn" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400">Login to Angel One</button>
+                     <div id="login-status" class="text-xs"></div>
+                </div>
+                <div id="angel-status-container" class="hidden flex items-center gap-2">
+                    <span>Angel One API:</span>
+                    <span id="angel-status-light" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                    <span id="angel-status-text">Live</span>
+                </div>
+                <span class="hidden sm:inline text-gray-400 font-bold">|</span>
+                <div class="flex items-center gap-2">
+                    <span>Google AI API:</span>
+                    <span id="ai-status-light" class="w-3 h-3 rounded-full bg-gray-400"></span>
+                    <span id="ai-status-text">Checking...</span>
+                </div>
+                <div id="clock-container" class="hidden flex items-center gap-2">
+                    <span class="hidden sm:inline text-gray-400 font-bold">|</span>
+                    <span id="clock"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-message" class="hidden text-center bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert"><strong class="font-bold">Error!</strong> <span class="block sm:inline"></span></div>
 
-    <h1>Indian Stock Market Companies</h1>
-    <p>Data fetched live from your Angel One account.</p>
+        <!-- Main content area, hidden until login -->
+        <div id="main-content" class="hidden space-y-6">
+            <!-- Live Market Data Section -->
+            <div id="market-data-container" class="flex flex-wrap justify-around items-center gap-x-4 gap-y-2 mb-4 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex items-center gap-2"><span class="font-bold text-gray-800" style="font-size: 0.7rem;">NIFTY 50</span><div style="font-size: 0.7rem;"><p class="font-semibold" id="nifty-price">--.--</p><p id="nifty-change">--.-- (--.--)%</p></div></div>
+                <div class="flex items-center gap-2"><span class="font-bold text-gray-800" style="font-size: 0.7rem;">BANK NIFTY</span><div style="font-size: 0.7rem;"><p class="font-semibold" id="banknifty-price">--.--</p><p id="banknifty-change">--.-- (--.--)%</p></div></div>
+                <div class="flex items-center gap-2"><span class="font-bold text-gray-800" style="font-size: 0.7rem;">SENSEX</span><div style="font-size: 0.7rem;"><p class="font-semibold" id="sensex-price">--.--</p><p id="sensex-change">--.-- (--.--)%</p></div></div>
+            </div>
+            
+             <!-- Top Performers Section -->
+            <div id="top-performers-container">
+                <h3 class="text-base font-bold text-gray-800 mb-2">Top Performing Companies</h3>
+                <div id="top-performers-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+                </div>
+            </div>
 
-    <hr>
+            <!-- Combined Controls and Technicals Section with Dynamic Search -->
+            <div id="main-controls-row" class="md:flex items-end justify-between gap-6">
+                <!-- Left Side: Dynamic Search Dropdown -->
+                <div class="flex-grow mb-4 md:mb-0">
+                    <label for="search-input" class="block mb-2 text-xs font-medium text-gray-700">Select a Company:</label>
+                    <div id="search-container" class="relative">
+                        <input type="text" id="search-input" placeholder="Select or type a symbol..." class="w-full p-2 text-sm pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <svg class="w-5 h-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                        <button id="cancel-search-btn" class="hidden absolute top-1/2 right-3 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <div id="search-results" class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
+                    </div>
+                </div>
+                <!-- Right Side: Technicals -->
+                <div id="technicals-container" class="hidden flex-grow">
+                     <div id="technicals-content" class="p-2 bg-gray-50 border border-gray-200 rounded-lg flex justify-around items-center flex-wrap gap-3">
+                        <div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">--.--</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">--</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">--.--</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">50-DMA</span><p id="dma50-value" class="font-semibold text-base">--.--</p></div>
+                        <div class="text-center"><span class="text-xs text-gray-600">200-DMA</span><p id="dma200-value" class="font-semibold text-base">--.--</p></div>
+                    </div>
+                </div>
+            </div>
 
-    <div>
-        <label for="company-dropdown">Select a Company:</label>
-        <select id="company-dropdown">
-            <option value="">Loading companies...</option>
-        </select>
+            <!-- Container for Chart and News -->
+            <div id="stock-details-wrapper" class="hidden mt-6 space-y-6">
+                <!-- Chart Section -->
+                <div id="chart-container">
+                    <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+                         <h3 class="text-xl font-bold text-gray-800">Price Chart</h3>
+                         <div id="timeframe-filter" class="flex items-center border border-gray-300 rounded-lg p-0.5">
+                            <button data-timeframe="ONE_MINUTE" class="timeframe-btn px-3 py-1 text-sm rounded-md hover:bg-gray-200">1m</button>
+                            <button data-timeframe="FIVE_MINUTE" class="timeframe-btn px-3 py-1 text-sm rounded-md hover:bg-gray-200">5m</button>
+                            <button data-timeframe="ONE_DAY" class="timeframe-btn px-3 py-1 text-sm rounded-md bg-blue-600 text-white">D</button>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <canvas id="price-chart"></canvas>
+                         <div id="chart-loader" class="hidden text-center py-10"><div class="mini-loader mx-auto"></div><p class="text-sm text-gray-500 mt-2">Fetching chart data...</p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Element References ---
+            const loginSection = document.getElementById('login-section');
+            const loginBtn = document.getElementById('login-btn');
+            const loginStatus = document.getElementById('login-status');
+            const mainContent = document.getElementById('main-content');
+            const searchContainer = document.getElementById('search-container');
+            const searchInput = document.getElementById('search-input');
+            const searchResults = document.getElementById('search-results');
+            const cancelSearchBtn = document.getElementById('cancel-search-btn');
+            const angelStatusContainer = document.getElementById('angel-status-container');
+            const angelStatusLight = document.getElementById('angel-status-light');
+            const angelStatusText = document.getElementById('angel-status-text');
+            const aiStatusLight = document.getElementById('ai-status-light');
+            const aiStatusText = document.getElementById('ai-status-text');
+            const clockContainer = document.getElementById('clock-container');
+            const clock = document.getElementById('clock');
+            const stockDetailsWrapper = document.getElementById('stock-details-wrapper');
+            const technicalsContainer = document.getElementById('technicals-container');
+            const technicalsContent = document.getElementById('technicals-content');
+            const chartContainer = document.getElementById('chart-container');
+            const chartLoader = document.getElementById('chart-loader');
+            const priceChartCanvas = document.getElementById('price-chart');
+            const timeframeFilter = document.getElementById('timeframe-filter');
+            const currentPriceEl = document.getElementById('current-price');
+            const rsiValueEl = document.getElementById('rsi-value');
+            const dma20ValueEl = document.getElementById('dma20-value');
+            const dma50ValueEl = document.getElementById('dma50-value');
+            const dma200ValueEl = document.getElementById('dma200-value');
+            const topPerformersContainer = document.getElementById('top-performers-container');
+            const topPerformersGrid = document.getElementById('top-performers-grid');
+            const errorMessageDiv = document.getElementById('error-message');
+            const refreshBtn = document.getElementById('refresh-btn');
 
+            const backendUrl = 'https://my-angel-api-service.onrender.com';
+            let priceChart = null;
+            let activeTimeframe = 'ONE_DAY';
+            let allStocks = [];
+            let selectedStock = null;
+
+            // --- Functions ---
+            function startIndianClock() { setInterval(() => { const now = new Date(); const options = { timeZone: 'Asia/Kolkata', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }; clock.textContent = new Intl.DateTimeFormat('en-IN', options).format(now); }, 1000); }
+            
+            function isMarketOpen() {
+                const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+                const day = now.getDay();
+                const hour = now.getHours();
+                const minutes = now.getMinutes();
+
+                if (day === 0 || day === 6) return false;
+                if (hour < 9 || (hour === 9 && minutes < 15)) return false;
+                if (hour > 15 || (hour === 15 && minutes > 30)) return false;
+                return true;
+            }
+
+            async function authenticatedFetch(url, options = {}) {
+                const response = await fetch(url, options);
+                if (response.status === 401) {
+                    loginSection.classList.remove('hidden');
+                    angelStatusContainer.classList.add('hidden');
+                    mainContent.classList.add('hidden');
+                    loginStatus.innerHTML = `<span class="text-red-600 font-bold">Session expired. Please log in again.</span>`;
+                    loginBtn.disabled = false;
+                    throw new Error('Session expired');
+                }
+                return response;
+            }
+
+            async function fetchTechnicalIndicators(stock) {
+                 const originalContent = `<div class="text-center"><span class="text-xs text-gray-600">Current Price</span><p id="current-price" class="font-bold text-lg">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">RSI (14)</span><p id="rsi-value" class="font-semibold text-lg">--</p></div><div class="text-center"><span class="text-xs text-gray-600">20-DMA</span><p id="dma20-value" class="font-semibold text-base">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">50-DMA</span><p id="dma50-value" class="font-semibold text-base">--.--</p></div><div class="text-center"><span class="text-xs text-gray-600">200-DMA</span><p id="dma200-value" class="font-semibold text-base">--.--</p></div>`;
+                 technicalsContent.innerHTML = '<div class="mini-loader mx-auto"></div>';
+                 try {
+                    const response = await authenticatedFetch(`${backendUrl}/api/stock-analysis`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ symboltoken: stock.token, exchange: stock.exch_seg })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || 'Failed to fetch technicals');
+                    
+                    technicalsContent.innerHTML = originalContent;
+                    document.getElementById('current-price').textContent = result.currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    document.getElementById('rsi-value').textContent = result.rsi ? result.rsi.toFixed(2) : 'N/A';
+                    document.getElementById('dma20-value').textContent = result.dma20 ? result.dma20.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+                    document.getElementById('dma50-value').textContent = result.dma50 ? result.dma50.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+                    document.getElementById('dma200-value').textContent = result.dma200 ? result.dma200.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A';
+                } catch (error) {
+                    technicalsContent.innerHTML = `<p class="text-red-500 text-center text-xs">Error: ${error.message}</p>`;
+                }
+            }
+            
+            async function renderChart(stock, timeframe) {
+                if (priceChart) { priceChart.destroy(); }
+                chartLoader.classList.remove('hidden');
+                priceChartCanvas.style.display = 'none';
+                try {
+                    const todate = new Date().toISOString().slice(0, 10);
+                    let fromdate = new Date();
+                    if (timeframe === 'ONE_DAY') {
+                        fromdate.setMonth(fromdate.getMonth() - 6);
+                    } else {
+                        fromdate.setDate(fromdate.getDate() - 2);
+                    }
+                    fromdate = fromdate.toISOString().slice(0, 10);
+
+                    const response = await authenticatedFetch(`${backendUrl}/api/historical-data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            symboltoken: stock.token, 
+                            exchange: stock.exch_seg, 
+                            interval: timeframe, 
+                            fromdate, 
+                            todate 
+                        })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || 'Failed to fetch chart data');
+                    
+                    const ohlcData = result.map(d => ({ x: new Date(d[0]).valueOf(), o: d[1], h: d[2], l: d[3], c: d[4] }));
+                    
+                    chartLoader.classList.add('hidden');
+                    priceChartCanvas.style.display = 'block';
+                    const ctx = priceChartCanvas.getContext('2d');
+                    priceChart = new Chart(ctx, {
+                        type: 'candlestick',
+                        data: { datasets: [{ label: `${stock.name} OHLC`, data: ohlcData }] },
+                        options: { responsive: true, scales: { x: { type: 'time', time: { unit: 'day' } } } }
+                    });
+                } catch (error) {
+                    chartLoader.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+                }
+            }
+            
+            async function fetchMarketData() {
+                try {
+                    const response = await authenticatedFetch(`${backendUrl}/api/market-data`);
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message || 'Failed to fetch market data');
+                    
+                    // Update Indices
+                    const nifty = result.indices.find(d => d.symbolToken === '26000');
+                    const banknifty = result.indices.find(d => d.symbolToken === '26009');
+                    const sensex = result.indices.find(d => d.symbolToken === '99926000');
+                    
+                    if (nifty) {
+                        document.getElementById('nifty-price').textContent = nifty.ltp.toLocaleString('en-IN');
+                        document.getElementById('nifty-change').textContent = `${nifty.netChange.toFixed(2)} (${nifty.percentChange.toFixed(2)}%)`;
+                        document.getElementById('nifty-change').className = nifty.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                    }
+                    if (banknifty) {
+                        document.getElementById('banknifty-price').textContent = banknifty.ltp.toLocaleString('en-IN');
+                        document.getElementById('banknifty-change').textContent = `${banknifty.netChange.toFixed(2)} (${banknifty.percentChange.toFixed(2)}%)`;
+                        document.getElementById('banknifty-change').className = banknifty.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                    }
+                     if (sensex) {
+                        document.getElementById('sensex-price').textContent = sensex.ltp.toLocaleString('en-IN');
+                        document.getElementById('sensex-change').textContent = `${sensex.netChange.toFixed(2)} (${sensex.percentChange.toFixed(2)}%)`;
+                        document.getElementById('sensex-change').className = sensex.netChange >= 0 ? 'text-xs price-up' : 'text-xs price-down';
+                    }
+
+                    // Update Top Performers
+                    topPerformersGrid.innerHTML = '';
+                    result.topPerformers.forEach(stock => {
+                        const stockDiv = document.createElement('div');
+                        stockDiv.className = 'p-1 bg-gray-100 rounded';
+                        const changeText = `${stock.change >= 0 ? '+' : ''}${stock.change.toFixed(2)} (${stock.percentChange.toFixed(2)}%)`;
+                        stockDiv.innerHTML = `<p class="font-semibold truncate" style="font-size: 0.65rem;" title="${stock.name}">${stock.name}</p><p class="text-gray-600" style="font-size: 0.65rem;">${stock.price.toLocaleString('en-IN')}</p><p class="text-xs ${stock.change >= 0 ? 'price-up' : 'price-down'}">${changeText}</p>`;
+                        topPerformersGrid.appendChild(stockDiv);
+                    });
+
+                } catch (error) {
+                    console.error("Error fetching market data:", error.message);
+                    if (error.message !== 'Session expired') {
+                        errorMessageDiv.querySelector('span').textContent = "Could not fetch live market data. The market may be closed. Please try again during market hours (9:15 AM - 3:30 PM IST).";
+                        errorMessageDiv.classList.remove('hidden');
+                    }
+                }
+            }
+
+            function renderSearchResults(stocks) { /* ... */ }
+            function handleStockSelection(stock) { /* ... */ }
+            function resetSelection() { /* ... */ }
+            
+            // --- Initial Page Load ---
+            async function initializeApp() {
+                clockContainer.classList.remove('hidden');
+                startIndianClock();
+            }
+            initializeApp();
+
+            // --- Event Listeners ---
+            loginBtn.addEventListener('click', async () => {
+                loginBtn.disabled = true;
+                loginStatus.textContent = 'Logging in...';
+                errorMessageDiv.classList.add('hidden');
+                try {
+                    const response = await fetch(`${backendUrl}/api/login`, { method: 'POST' });
+                    const result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.message || `HTTP error! Status: ${response.status}`);
+                    }
+                    
+                    loginSection.classList.add('hidden');
+                    angelStatusContainer.classList.remove('hidden');
+                    
+                    mainContent.classList.remove('hidden');
+
+                    const instrumentsResponse = await authenticatedFetch(`${backendUrl}/api/instruments`);
+                    const instrumentsData = await instrumentsResponse.json();
+                    allStocks = instrumentsData.sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    fetchMarketData();
+                    if (isMarketOpen()) {
+                        setInterval(fetchMarketData, 30000);
+                    }
+
+                } catch (error) {
+                    loginStatus.innerHTML = `<span class="text-red-600 font-bold">Login Failed: ${error.message}</span>`;
+                    loginBtn.disabled = false;
+                }
+            });
+            
+            if(refreshBtn) {
+                refreshBtn.addEventListener('click', () => location.reload());
+            }
+            searchInput.addEventListener('input', () => { /* ... */ });
+            searchInput.addEventListener('focus', () => { /* ... */ });
+            searchInput.addEventListener('keydown', (event) => { /* ... */ });
+            cancelSearchBtn.addEventListener('click', resetSelection);
+            searchResults.addEventListener('click', (event) => { /* ... */ });
+            document.addEventListener('click', (event) => { /* ... */ });
+            timeframeFilter.addEventListener('click', (event) => {
+                 const target = event.target.closest('.timeframe-btn');
+                if (!target || target.dataset.timeframe === activeTimeframe) return;
+
+                document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('hover:bg-gray-200');
+                });
+                target.classList.add('bg-blue-600', 'text-white');
+                target.classList.remove('hover:bg-gray-200');
+
+                activeTimeframe = target.dataset.timeframe;
+
+                if (selectedStock) {
+                    renderChart(selectedStock, activeTimeframe);
+                }
+            });
+
+            // --- Pasted Functions for completeness ---
+            function renderSearchResults(stocks) { searchResults.innerHTML = ''; if (stocks.length === 0) { searchResults.innerHTML = `<div class="p-2 text-gray-500">No results found</div>`; } else { stocks.slice(0, 100).forEach((stock, index) => { const item = document.createElement('div'); item.className = `p-2 hover:bg-gray-100 cursor-pointer ${index === 0 ? 'highlighted' : ''}`; item.innerHTML = `${stock.name} <span class="text-gray-500 text-sm">(${stock.symbol})</span>`; item.dataset.stock = JSON.stringify(stock); searchResults.appendChild(item); }); } searchResults.classList.remove('hidden'); }
+            function handleStockSelection(stock) { selectedStock = stock; searchInput.value = stock.name; searchResults.classList.add('hidden'); cancelSearchBtn.classList.remove('hidden'); technicalsContainer.classList.remove('hidden'); stockDetailsWrapper.classList.remove('hidden'); renderChart(stock, activeTimeframe); fetchTechnicalIndicators(stock); }
+            function resetSelection() { selectedStock = null; searchInput.value = ''; cancelSearchBtn.classList.add('hidden'); searchResults.classList.add('hidden'); technicalsContainer.classList.add('hidden'); stockDetailsWrapper.classList.add('hidden'); if (priceChart) priceChart.destroy(); }
+            searchInput.addEventListener('input', () => { const searchTerm = searchInput.value.toLowerCase(); cancelSearchBtn.classList.toggle('hidden', !searchTerm); const filteredStocks = allStocks.filter(stock => stock.name.toLowerCase().includes(searchTerm) || stock.symbol.toLowerCase().includes(searchTerm)); renderSearchResults(filteredStocks); });
+            searchInput.addEventListener('focus', () => { const searchTerm = searchInput.value.toLowerCase(); const filteredStocks = allStocks.filter(stock => stock.name.toLowerCase().includes(searchTerm) || stock.symbol.toLowerCase().includes(searchTerm)); renderSearchResults(filteredStocks); });
+            searchInput.addEventListener('keydown', (event) => { const resultsContainer = searchResults; const highlighted = resultsContainer.querySelector('.highlighted'); let newHighlighted; if (event.key === 'ArrowDown') { event.preventDefault(); if (highlighted && highlighted.nextElementSibling) { newHighlighted = highlighted.nextElementSibling; } else if (!highlighted) { newHighlighted = resultsContainer.firstElementChild; } if (newHighlighted) { if(highlighted) highlighted.classList.remove('highlighted'); newHighlighted.classList.add('highlighted'); newHighlighted.scrollIntoView({ block: 'nearest' }); } } else if (event.key === 'ArrowUp') { event.preventDefault(); if (highlighted && highlighted.previousElementSibling) { newHighlighted = highlighted.previousElementSibling; } if (newHighlighted) { if(highlighted) highlighted.classList.remove('highlighted'); newHighlighted.classList.add('highlighted'); newHighlighted.scrollIntoView({ block: 'nearest' }); } } else if (event.key === 'Enter') { event.preventDefault(); if (highlighted) { const stockData = JSON.parse(highlighted.dataset.stock); handleStockSelection(stockData); } } });
+            cancelSearchBtn.addEventListener('click', resetSelection);
+            searchResults.addEventListener('click', (event) => { const target = event.target.closest('[data-stock]'); if (target) { const stockData = JSON.parse(target.dataset.stock); handleStockSelection(stockData); } });
+            document.addEventListener('click', (event) => { if (!searchContainer.contains(event.target)) { searchResults.classList.add('hidden'); } });
+        });
+    </script>
 </body>
 </html>
